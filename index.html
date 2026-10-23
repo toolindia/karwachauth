@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Square (1:1) Interactive Loop Flipbook</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+        }
+        /* 3D Book Flip Styles optimized for 1:1 aspect ratio */
+        .perspective-container {
+            perspective: 1600px;
+        }
+        .book {
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .page {
+            transform-style: preserve-3d;
+            transform-origin: left center;
+            transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1), box-shadow 0.8s ease;
+        }
+        .page.flipped {
+            transform: rotateY(-180deg);
+        }
+        /* Custom scrollbar for thumbnails */
+        ::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 100, 100, 0.3);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 100, 100, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between antialiased selection:bg-indigo-500 selection:text-white">
+
+    <!-- Header Navigation Bar -->
+    <header class="w-full px-6 py-4 flex items-center justify-between border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                <i class="fa-solid fa-book-bookmark text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">Square (1:1) Flipbook Studio</h1>
+                <p class="text-xs text-slate-400">Optimized Loop Viewer</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <button id="fullscreen-btn" title="Toggle Fullscreen" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition shadow-sm border border-slate-700/50">
+                <i class="fa-solid fa-expand"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+
+        <!-- Flipbook Stage (Strict 1:1 Aspect Ratio Box) -->
+        <div class="relative w-full flex flex-col items-center justify-center my-auto">
+            
+            <!-- Book Container optimized for 1:1 Square layout -->
+            <div class="perspective-container relative w-full max-w-[420px] sm:max-w-[480px] md:max-w-[520px] aspect-square flex items-center justify-center">
+                <div id="book-element" class="book relative w-full h-full shadow-2xl rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden flex items-center justify-center">
+                    
+                    <!-- Pages Rendered Dynamically via JS -->
+                    <div id="pages-wrapper" class="relative w-full h-full"></div>
+
+                </div>
+            </div>
+
+            <!-- On-Screen Navigation Overlay Buttons -->
+            <button id="prev-floating" class="absolute left-2 sm:left-4 md:left-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-800/80 hover:bg-indigo-600 text-white backdrop-blur-md shadow-xl border border-slate-700/50 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 z-20 focus:outline-none">
+                <i class="fa-solid fa-chevron-left text-lg"></i>
+            </button>
+            <button id="next-floating" class="absolute right-2 sm:right-4 md:right-8 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-800/80 hover:bg-indigo-600 text-white backdrop-blur-md shadow-xl border border-slate-700/50 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 z-20 focus:outline-none">
+                <i class="fa-solid fa-chevron-right text-lg"></i>
+            </button>
+        </div>
+
+        <!-- Controls Toolbar & Pagination Status -->
+        <div class="w-full max-w-lg mt-6 flex flex-col items-center gap-4 bg-slate-800/60 backdrop-blur-md p-4 rounded-2xl border border-slate-700/50 shadow-xl">
+            
+            <!-- Top bar of controls -->
+            <div class="flex items-center justify-between w-full px-2">
+                <!-- Page Indicator badge -->
+                <div class="flex items-center space-x-2">
+                    <span class="px-3 py-1 rounded-full bg-indigo-500/15 text-indigo-400 font-semibold text-xs tracking-wide border border-indigo-500/30" id="page-indicator">
+                        Page 1 of 7
+                    </span>
+                </div>
+
+                <!-- Playback & Navigation Controls -->
+                <div class="flex items-center space-x-2">
+                    <button id="first-btn" title="First Page" class="p-2.5 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-white transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-backward-step"></i>
+                    </button>
+                    <button id="prev-btn" title="Previous Page" class="p-2.5 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-white transition">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <button id="play-btn" title="Auto Play / Pause" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition shadow-lg shadow-indigo-600/30 flex items-center space-x-2">
+                        <i id="play-icon" class="fa-solid fa-play"></i>
+                        <span id="play-text">Auto Play</span>
+                    </button>
+                    <button id="next-btn" title="Next Page" class="p-2.5 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-white transition">
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                    <button id="last-btn" title="Last Page" class="p-2.5 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-white transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Page Scrubber / Slider Control -->
+            <div class="w-full flex items-center space-x-3 px-2 pt-1 border-t border-slate-700/40 text-xs text-slate-400">
+                <span>Scrub:</span>
+                <input id="page-scrubber" type="range" min="0" max="6" step="1" value="0" class="w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-700 rounded-lg">
+                <span id="scrub-label" class="font-mono text-slate-300 w-10 text-right">1/7</span>
+            </div>
+
+            <!-- Speed Slider Control -->
+            <div class="w-full flex items-center space-x-3 px-2 pt-1 border-t border-slate-700/40 text-xs text-slate-400">
+                <span>Speed:</span>
+                <input id="speed-range" type="range" min="1000" max="5000" step="500" value="2500" class="w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-700 rounded-lg">
+                <span id="speed-label" class="font-mono text-slate-300 w-12 text-right">2.5s</span>
+            </div>
+
+        </div>
+
+        <!-- Thumbnail Preview Strip (Square 1:1 thumbnails) -->
+        <div class="w-full max-w-4xl mt-6">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-1 flex items-center justify-between">
+                <span>Square Thumbnails</span>
+                <span class="text-slate-500">Click any page to jump</span>
+            </div>
+            <div id="thumbnail-strip" class="flex items-center space-x-3 overflow-x-auto pb-2 px-1 scroll-smooth">
+                <!-- Thumbnails populated by JS -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full py-4 text-center text-xs text-slate-500 border-t border-slate-800">
+        Square (1:1) Interactive Flipbook Viewer &bull; Loop Mode Enabled
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Exact sequential 1:1 square image URLs provided by user
+        const imageUrls = [
+            "https://i.ibb.co/nNvRrcry/1-63.png",
+            "https://i.ibb.co/nMScz3T6/4-57.png",
+            "https://i.ibb.co/9k2zpXxn/8.png",
+            "https://i.ibb.co/Gfk3XBRc/11.png",
+            "https://i.ibb.co/CKCzVhgd/12.png",
+            "https://i.ibb.co/Kjp8w7tP/15.png",
+            "https://i.ibb.co/VcMjd4sS/17.png"
+        ];
+
+        let currentPageIndex = 0;
+        let isPlaying = false;
+        let playInterval = null;
+        let autoPlaySpeed = 2500; // milliseconds
+
+        // DOM Elements
+        const pagesWrapper = document.getElementById('pages-wrapper');
+        const pageIndicator = document.getElementById('page-indicator');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const prevFloating = document.getElementById('prev-floating');
+        const nextFloating = document.getElementById('next-floating');
+        const firstBtn = document.getElementById('first-btn');
+        const lastBtn = document.getElementById('last-btn');
+        const playBtn = document.getElementById('play-btn');
+        const playIcon = document.getElementById('play-icon');
+        const playText = document.getElementById('play-text');
+        const speedRange = document.getElementById('speed-range');
+        const speedLabel = document.getElementById('speed-label');
+        const pageScrubber = document.getElementById('page-scrubber');
+        const scrubLabel = document.getElementById('scrub-label');
+        const thumbnailStrip = document.getElementById('thumbnail-strip');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+
+        // Initialize Book Structure for 1:1 Square Images
+        function initFlipbook() {
+            pagesWrapper.innerHTML = '';
+            thumbnailStrip.innerHTML = '';
+            pageScrubber.max = imageUrls.length - 1;
+
+            // Create pages in reverse DOM order so top-most page sits correctly in 3D layering
+            imageUrls.forEach((url, index) => {
+                // Main Flip Page (1:1 square aspect ratio)
+                const pageDiv = document.createElement('div');
+                pageDiv.className = `page absolute inset-0 w-full h-full bg-slate-900 rounded-xl overflow-hidden shadow-2xl`;
+                pageDiv.style.zIndex = imageUrls.length - index;
+                pageDiv.id = `page-${index}`;
+
+                // Image Element with 1:1 cover optimization
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = `Square Flipbook Page ${index + 1}`;
+                img.className = 'w-full h-full object-cover bg-slate-950 select-none';
+                img.onerror = function() {
+                    this.src = `https://placehold.co/600x600/1e1939/ffffff?text=Page+${index+1}+Error`;
+                };
+
+                pageDiv.appendChild(img);
+                pagesWrapper.appendChild(pageDiv);
+
+                // Thumbnail creation (Square 1:1)
+                const thumb = document.createElement('div');
+                thumb.className = `relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 cursor-pointer transition-all duration-200 ${index === 0 ? 'border-indigo-500 scale-105 shadow-md shadow-indigo-500/20' : 'border-slate-700 opacity-60 hover:opacity-100 hover:border-slate-500'}`;
+                thumb.id = `thumb-${index}`;
+                
+                const thumbImg = document.createElement('img');
+                thumbImg.src = url;
+                thumbImg.className = 'w-full h-full object-cover';
+                thumb.appendChild(thumbImg);
+
+                // Thumbnail click handler
+                thumb.addEventListener('click', () => {
+                    goToPage(index);
+                    stopAutoPlay();
+                });
+
+                thumbnailStrip.appendChild(thumb);
+            });
+
+            updateBookState();
+        }
+
+        // Update UI states (classes, buttons, thumbnails, indicators, scrubbers)
+        function updateBookState() {
+            // Apply flipped status to pages
+            imageUrls.forEach((_, index) => {
+                const page = document.getElementById(`page-${index}`);
+                const thumb = document.getElementById(`thumb-${index}`);
+
+                if (index < currentPageIndex) {
+                    page.classList.add('flipped');
+                } else {
+                    page.classList.remove('flipped');
+                }
+
+                // Update thumbnail highlights
+                if (index === currentPageIndex) {
+                    thumb.className = "relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 border-indigo-500 scale-105 shadow-md shadow-indigo-500/20 transition-all duration-200";
+                } else {
+                    thumb.className = "relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 border-slate-700 opacity-60 hover:opacity-100 hover:border-slate-500 transition-all duration-200";
+                }
+            });
+
+            // Update Indicator Text & Scrubber
+            pageIndicator.textContent = `Page ${currentPageIndex + 1} of ${imageUrls.length}`;
+            pageScrubber.value = currentPageIndex;
+            scrubLabel.textContent = `${currentPageIndex + 1}/${imageUrls.length}`;
+
+            // Button states
+            firstBtn.disabled = currentPageIndex === 0;
+            lastBtn.disabled = currentPageIndex === imageUrls.length - 1;
+        }
+
+        // Navigate to specific page with loop capability
+        function goToPage(index) {
+            if (index < 0) {
+                currentPageIndex = imageUrls.length - 1; // Loop to end
+            } else if (index >= imageUrls.length) {
+                currentPageIndex = 0; // Loop to start
+            } else {
+                currentPageIndex = index;
+            }
+            updateBookState();
+        }
+
+        function nextPage() {
+            if (currentPageIndex < imageUrls.length - 1) {
+                currentPageIndex++;
+            } else {
+                currentPageIndex = 0; // Seamless loop back to start
+            }
+            updateBookState();
+        }
+
+        function prevPage() {
+            if (currentPageIndex > 0) {
+                currentPageIndex--;
+            } else {
+                currentPageIndex = imageUrls.length - 1; // Loop to end
+            }
+            updateBookState();
+        }
+
+        // Auto-Play Handling
+        function toggleAutoPlay() {
+            if (isPlaying) {
+                stopAutoPlay();
+            } else {
+                startAutoPlay();
+            }
+        }
+
+        function startAutoPlay() {
+            isPlaying = true;
+            playIcon.className = "fa-solid fa-pause";
+            playText.textContent = "Pause Loop";
+            playBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500', 'shadow-indigo-600/30');
+            playBtn.classList.add('bg-amber-600', 'hover:bg-amber-500', 'shadow-amber-600/30');
+
+            playInterval = setInterval(() => {
+                nextPage();
+            }, autoPlaySpeed);
+        }
+
+        function stopAutoPlay() {
+            isPlaying = false;
+            playIcon.className = "fa-solid fa-play";
+            playText.textContent = "Auto Play";
+            playBtn.classList.remove('bg-amber-600', 'hover:bg-amber-500', 'shadow-amber-600/30');
+            playBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-500', 'shadow-indigo-600/30');
+
+            if (playInterval) {
+                clearInterval(playInterval);
+                playInterval = null;
+            }
+        }
+
+        // Event Listeners for Controls
+        nextBtn.addEventListener('click', () => { nextPage(); stopAutoPlay(); });
+        prevBtn.addEventListener('click', () => { prevPage(); stopAutoPlay(); });
+        nextFloating.addEventListener('click', () => { nextPage(); stopAutoPlay(); });
+        prevFloating.addEventListener('click', () => { prevPage(); stopAutoPlay(); });
+        firstBtn.addEventListener('click', () => { goToPage(0); stopAutoPlay(); });
+        lastBtn.addEventListener('click', () => { goToPage(imageUrls.length - 1); stopAutoPlay(); });
+        playBtn.addEventListener('click', toggleAutoPlay);
+
+        // Page Scrubber Slider
+        pageScrubber.addEventListener('input', (e) => {
+            goToPage(parseInt(e.target.value));
+            stopAutoPlay();
+        });
+
+        // Speed Slider
+        speedRange.addEventListener('input', (e) => {
+            autoPlaySpeed = parseInt(e.target.value);
+            speedLabel.textContent = (autoPlaySpeed / 1000).toFixed(1) + 's';
+            if (isPlaying) {
+                clearInterval(playInterval);
+                playInterval = setInterval(nextPage, autoPlaySpeed);
+            }
+        });
+
+        // Keyboard Navigation (Arrow keys & Spacebar)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+                nextPage();
+                stopAutoPlay();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                prevPage();
+                stopAutoPlay();
+            } else if (e.key === ' ') {
+                e.preventDefault();
+                toggleAutoPlay();
+            }
+        });
+
+        // Fullscreen Toggle
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error("Error attempting to enable fullscreen:", err);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        });
+
+        // Touch Swipe Gestures support for mobile devices
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        const bookElement = document.getElementById('book-element');
+        bookElement.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, {passive: true});
+
+        bookElement.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipeGesture();
+        }, {passive: true});
+
+        function handleSwipeGesture() {
+            if (touchEndX < touchStartX - 50) {
+                nextPage();
+                stopAutoPlay();
+            }
+            if (touchEndX > touchStartX + 50) {
+                prevPage();
+                stopAutoPlay();
+            }
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            initFlipbook();
+        };
+    </script>
+
+</body>
+</html>
