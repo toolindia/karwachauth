@@ -3,96 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ofbuzz Widescreen Flipbook Viewer</title>
+    <title>Ofbuzz Widescreen 3D Flipbook Viewer</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include PageFlip library from CDN for realistic 3D page curling & turning physics -->
+    <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
     <style>
         body {
             background-color: #FAF8F5;
             color: #1A1A1A;
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow-x: hidden;
         }
         .bg-cream { background-color: #FAF8F5; }
         .bg-maroon { background-color: #800020; }
         .text-maroon { color: #800020; }
         .border-maroon { border-color: #800020; }
-        
-        .flip-container {
-            perspective: 2000px;
+
+        /* Book Shadow & Container Polish */
+        #book {
+            box-shadow: 0 25px 60px -15px rgba(128, 0, 32, 0.3);
+            border-radius: 6px;
         }
-        .book-page {
-            transform-style: preserve-3d;
-            transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
+
+        /* Custom scrollbar for thumbnails */
+        ::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #FAF8F5;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #800020;
+            border-radius: 3px;
         }
     </style>
 </head>
 <body class="bg-cream min-h-screen flex flex-col justify-between selection:bg-[#800020] selection:text-white">
 
     <!-- Top Navigation Header -->
-    <header class="w-full border-b border-[#800020]/20 bg-[#FAF8F5]/90 backdrop-blur sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
-        <div>
-            <h1 class="text-xl font-bold tracking-wide text-maroon">OFBUZZ FLIPBOOK</h1>
-            <p class="text-xs text-neutral-600 tracking-wider uppercase">16:9 Widescreen Edition</p>
+    <header class="w-full border-b border-[#800020]/20 bg-[#FAF8F5]/90 backdrop-blur sticky top-0 z-50 px-6 py-4 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-maroon rounded-lg flex items-center justify-center text-white font-bold text-base shadow-md">O</div>
+            <div>
+                <h1 class="text-lg md:text-xl font-bold tracking-wide text-maroon">OFBUZZ FLIPBOOK</h1>
+                <p class="text-xs text-neutral-600 tracking-wider uppercase font-medium">16:9 Realistic 3D Paper Edition</p>
+            </div>
         </div>
-        <div class="flex items-center gap-4">
-            <span id="page-indicator" class="text-sm font-medium px-3 py-1 bg-[#800020]/10 text-maroon rounded-full">
-                Page 1 of 16
+        <div class="flex items-center gap-3">
+            <button onclick="toggleFullscreen()" class="hidden md:flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-maroon border border-maroon/30 hover:bg-[#800020]/10 rounded-lg transition shadow-sm" title="Toggle Fullscreen">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+                <span>Fullscreen</span>
+            </button>
+            <span id="page-indicator" class="text-sm font-semibold px-4 py-1.5 bg-[#800020]/10 text-maroon rounded-full border border-[#800020]/20 shadow-inner">
+                Loading Pages...
             </span>
         </div>
     </header>
 
     <!-- Main Content Area -->
-    <main class="flex-1 flex flex-col items-center justify-center p-4 md:p-8 max-w-6xl mx-auto w-full">
+    <main class="flex-1 flex flex-col items-center justify-center p-4 md:p-6 max-w-7xl mx-auto w-full">
         
-        <!-- Flipbook Viewport -->
-        <div class="relative w-full aspect-video max-w-4xl bg-white shadow-2xl rounded-xl border border-[#800020]/20 overflow-hidden flex items-center justify-center flip-container" id="flipbook-viewport">
+        <!-- Flipbook Viewport Container -->
+        <div class="relative w-full max-w-5xl aspect-[16/9] flex items-center justify-center my-2" id="viewport-container">
             
             <!-- Loading Overlay -->
-            <div id="loading-overlay" class="absolute inset-0 bg-[#FAF8F5] z-30 flex flex-col items-center justify-center transition-opacity duration-500">
-                <div class="w-10 h-10 border-4 border-[#800020] border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p class="text-sm font-medium text-maroon tracking-wide">Loading Widescreen Assets...</p>
-            </div>
-
-            <!-- Image Stage -->
-            <div class="relative w-full h-full flex items-center justify-center bg-neutral-900">
-                <img id="current-slide" src="" alt="Flipbook Page" class="w-full h-full object-contain book-page select-none">
+            <div id="loading-overlay" class="absolute inset-0 bg-[#FAF8F5] z-50 flex flex-col items-center justify-center transition-opacity duration-700 rounded-2xl shadow-inner">
+                <div class="w-12 h-12 border-4 border-[#800020] border-t-transparent rounded-full animate-spin mb-4 shadow-md"></div>
+                <p class="text-sm font-semibold text-maroon tracking-wider animate-pulse">Initializing 3D Book Physics...</p>
             </div>
 
             <!-- Navigation Arrow Left -->
-            <button onclick="prevPage()" class="absolute left-4 z-20 bg-white/80 hover:bg-white text-maroon p-3 rounded-full shadow-lg border border-[#800020]/20 transition transform hover:scale-105 focus:outline-none">
+            <button onclick="prevPage()" class="absolute left-2 md:-left-6 z-40 bg-white/90 hover:bg-white text-maroon p-3.5 rounded-full shadow-xl border border-[#800020]/30 transition transform hover:scale-110 active:scale-95 focus:outline-none" title="Previous Page">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7" />
                 </svg>
             </button>
 
+            <!-- PageFlip Canvas Element Container -->
+            <div id="book" class="w-full h-full">
+                <!-- Pages will be dynamically injected here for PageFlip -->
+            </div>
+
             <!-- Navigation Arrow Right -->
-            <button onclick="nextPage()" class="absolute right-4 z-20 bg-white/80 hover:bg-white text-maroon p-3 rounded-full shadow-lg border border-[#800020]/20 transition transform hover:scale-105 focus:outline-none">
+            <button onclick="nextPage()" class="absolute right-2 md:-right-6 z-40 bg-white/90 hover:bg-white text-maroon p-3.5 rounded-full shadow-xl border border-[#800020]/30 transition transform hover:scale-110 active:scale-95 focus:outline-none" title="Next Page">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
                 </svg>
             </button>
         </div>
 
         <!-- Controls Toolbar -->
-        <div class="mt-6 flex flex-wrap items-center justify-center gap-4 w-full max-w-4xl bg-white p-4 rounded-xl border border-[#800020]/20 shadow-sm">
-            <button onclick="firstPage()" class="px-4 py-2 text-sm font-medium text-maroon hover:bg-[#800020]/10 rounded-lg transition">First</button>
-            <button onclick="prevPage()" class="px-4 py-2 text-sm font-medium text-white bg-maroon rounded-lg hover:bg-[#630019] transition">Previous</button>
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-3 w-full max-w-5xl bg-white p-4 rounded-xl border border-[#800020]/20 shadow-md">
+            <button onclick="firstPage()" class="px-4 py-2 text-sm font-semibold text-maroon hover:bg-[#800020]/10 rounded-lg transition">First Page</button>
+            <button onclick="prevPage()" class="px-5 py-2 text-sm font-semibold text-white bg-maroon rounded-lg hover:bg-[#630019] shadow transition">Previous</button>
             
-            <input type="range" id="page-slider" min="0" max="15" value="0" oninput="jumpToPage(this.value)" class="w-48 md:w-64 accent-[#800020] cursor-pointer">
+            <div class="flex items-center gap-2 px-3">
+                <input type="range" id="page-slider" min="0" max="15" value="0" oninput="jumpToPage(this.value)" class="w-40 md:w-56 accent-[#800020] cursor-pointer">
+            </div>
             
-            <button onclick="nextPage()" class="px-4 py-2 text-sm font-medium text-white bg-maroon rounded-lg hover:bg-[#630019] transition">Next</button>
-            <button onclick="toggleAutoPlay()" id="autoplay-btn" class="px-4 py-2 text-sm font-medium border border-maroon text-maroon hover:bg-[#800020]/10 rounded-lg transition">Auto Play: Off</button>
-            <button onclick="lastPage()" class="px-4 py-2 text-sm font-medium text-maroon hover:bg-[#800020]/10 rounded-lg transition">Last</button>
+            <button onclick="nextPage()" class="px-5 py-2 text-sm font-semibold text-white bg-maroon rounded-lg hover:bg-[#630019] shadow transition">Next</button>
+            <button onclick="toggleAutoPlay()" id="autoplay-btn" class="px-4 py-2 text-sm font-semibold border-2 border-maroon text-maroon hover:bg-[#800020]/10 rounded-lg transition">Auto Play: Off</button>
+            <button onclick="lastPage()" class="px-4 py-2 text-sm font-semibold text-maroon hover:bg-[#800020]/10 rounded-lg transition">Last Page</button>
         </div>
 
         <!-- Thumbnail Strip -->
-        <div class="mt-6 w-full max-w-4xl overflow-x-auto pb-2 flex gap-3 scrollbar-thin scrollbar-thumb-[#800020]">
-            <div id="thumbnail-strip" class="flex gap-3 px-1"></div>
+        <div class="mt-5 w-full max-w-5xl overflow-x-auto pb-3 flex gap-3 scrollbar-thin">
+            <div id="thumbnail-strip" class="flex gap-3 px-1 items-center"></div>
         </div>
     </main>
 
     <!-- Footer -->
-    <footer class="w-full text-center py-4 border-t border-[#800020]/20 text-xs text-neutral-500">
-        Ofbuzz Technology &bull; Secure Widescreen Presentation Portal
+    <footer class="w-full text-center py-4 border-t border-[#800020]/20 text-xs text-neutral-500 bg-[#FAF8F5]">
+        Ofbuzz Technology &bull; Realistic 3D Page-Curl Flipbook Viewer
     </footer>
 
     <!-- JavaScript Application Logic -->
@@ -116,119 +141,181 @@
             "https://i.ibb.co/yFh2sLD4/16-1.png"
         ];
 
-        let currentIndex = 0;
+        let flipBook = null;
         let isAutoPlaying = false;
         let autoPlayTimer = null;
-        const preloadedImages = [];
 
-        const slideElement = document.getElementById('current-slide');
         const pageIndicator = document.getElementById('page-indicator');
         const pageSlider = document.getElementById('page-slider');
         const loadingOverlay = document.getElementById('loading-overlay');
         const thumbnailStrip = document.getElementById('thumbnail-strip');
         const autoplayBtn = document.getElementById('autoplay-btn');
 
-        // Preload all images for zero latency switching
-        function preloadImages() {
-            let loadedCount = 0;
+        // Build book pages inside DOM before initializing PageFlip
+        function buildBookDom() {
+            const bookElement = document.getElementById('book');
+            bookElement.innerHTML = '';
             imageUrls.forEach((url, index) => {
-                const img = new Image();
-                img.src = url;
-                img.onload = () => {
-                    loadedCount++;
-                    if (loadedCount === imageUrls.length) {
-                        loadingOverlay.style.opacity = '0';
-                        setTimeout(() => loadingOverlay.remove(), 500);
-                    }
-                };
-                img.onerror = () => {
-                    loadedCount++;
-                    if (loadedCount === imageUrls.length) {
-                        loadingOverlay.style.opacity = '0';
-                        setTimeout(() => loadingOverlay.remove(), 500);
-                    }
-                };
-                preloadedImages[index] = img;
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'page bg-white shadow-md overflow-hidden flex items-center justify-center';
+                pageDiv.innerHTML = `
+                    <div class="relative w-full h-full flex items-center justify-center bg-white">
+                        <img src="${url}" alt="Page ${index + 1}" class="w-full h-full object-contain select-none pointer-events-none">
+                        <div class="absolute bottom-2 right-4 text-[11px] font-medium text-neutral-400">${index + 1}</div>
+                    </div>
+                `;
+                bookElement.appendChild(pageDiv);
             });
         }
 
         // Render Thumbnails
         function renderThumbnails() {
+            thumbnailStrip.innerHTML = '';
             imageUrls.forEach((url, index) => {
                 const thumb = document.createElement('div');
-                thumb.className = `flex-shrink-0 w-24 aspect-video rounded-md overflow-hidden border-2 cursor-pointer transition ${index === currentIndex ? 'border-[#800020] scale-105 shadow-md' : 'border-neutral-300 opacity-70 hover:opacity-100'}`;
+                thumb.className = `flex-shrink-0 w-24 aspect-video rounded-md overflow-hidden border-2 cursor-pointer transition transform hover:scale-105 shadow-sm ${index === 0 ? 'border-[#800020] ring-2 ring-[#800020]/30' : 'border-neutral-300 opacity-75 hover:opacity-100'}`;
                 thumb.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
-                thumb.onclick = () => goToPage(index);
+                thumb.onclick = () => {
+                    if (flipBook) flipBook.flip(index);
+                };
                 thumb.id = `thumb-${index}`;
                 thumbnailStrip.appendChild(thumb);
             });
         }
 
-        function updateView() {
-            // Apply flip/fade transition effect
-            slideElement.style.transform = 'rotateY(90deg)';
-            slideElement.style.opacity = '0';
+        // Initialize PageFlip 3D Engine
+        function initPageFlip() {
+            buildBookDom();
+            renderThumbnails();
 
-            setTimeout(() => {
-                slideElement.src = imageUrls[currentIndex];
-                slideElement.style.transform = 'rotateY(0deg)';
-                slideElement.style.opacity = '1';
-            }, 200);
+            const container = document.getElementById('book');
+            const containerWidth = container.clientWidth || 900;
+            const singlePageWidth = containerWidth / 2;
+            const containerHeight = container.clientHeight || 500;
 
-            pageIndicator.innerText = `Page ${currentIndex + 1} of ${imageUrls.length}`;
-            pageSlider.value = currentIndex;
+            try {
+                flipBook = new St.PageFlip(container, {
+                    width: singlePageWidth,
+                    height: containerHeight,
+                    size: "stretch",
+                    minWidth: 300,
+                    maxWidth: 1200,
+                    minHeight: 200,
+                    maxHeight: 800,
+                    maxShadowOpacity: 0.5,
+                    showCover: true,
+                    mobileScrollSupport: true,
+                    clickEventForward: true,
+                    usePortrait: false,
+                    startPage: 0
+                });
 
-            // Update active thumbnail
+                flipBook.loadFromHTML(document.querySelectorAll('#book .page'));
+
+                // Event Listeners
+                flipBook.on('flip', (e) => {
+                    const currentPage = e.data;
+                    updateUIState(currentPage);
+                });
+
+                // Remove loading overlay once ready
+                setTimeout(() => {
+                    loadingOverlay.style.opacity = '0';
+                    setTimeout(() => loadingOverlay.remove(), 700);
+                    updateUIState(0);
+                }, 800);
+
+            } catch (err) {
+                console.error("PageFlip initialization error:", err);
+                loadingOverlay.innerHTML = `<p class="text-maroon font-semibold">Error loading 3D book physics. Please refresh.</p>`;
+            }
+        }
+
+        function updateUIState(pageIndex) {
+            const leftPage = pageIndex + 1;
+            const rightPage = pageIndex + 2;
+
+            if (rightPage <= imageUrls.length) {
+                pageIndicator.innerText = `Pages ${leftPage}-${rightPage} of ${imageUrls.length}`;
+            } else {
+                pageIndicator.innerText = `Page ${leftPage} of ${imageUrls.length}`;
+            }
+
+            pageSlider.value = pageIndex;
+
+            // Highlight active thumbnail
             document.querySelectorAll('#thumbnail-strip > div').forEach((thumb, idx) => {
-                if (idx === currentIndex) {
-                    thumb.className = 'flex-shrink-0 w-24 aspect-video rounded-md overflow-hidden border-2 border-[#800020] scale-105 shadow-md cursor-pointer transition';
-                    thumb.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+                if (idx === pageIndex || idx === pageIndex + 1) {
+                    thumb.className = 'flex-shrink-0 w-24 aspect-video rounded-md overflow-hidden border-2 border-[#800020] ring-2 ring-[#800020]/30 shadow-md cursor-pointer transition transform scale-105';
+                    if (idx === pageIndex) {
+                        thumb.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+                    }
                 } else {
-                    thumb.className = 'flex-shrink-0 w-24 aspect-video rounded-md overflow-hidden border-2 border-neutral-300 opacity-70 hover:opacity-100 cursor-pointer transition';
+                    thumb.className = 'flex-shrink-0 w-24 aspect-video rounded-md overflow-hidden border-2 border-neutral-300 opacity-75 hover:opacity-100 cursor-pointer transition';
                 }
             });
         }
 
-        function goToPage(index) {
-            currentIndex = index;
-            updateView();
-        }
-
         function nextPage() {
-            currentIndex = (currentIndex + 1) % imageUrls.length;
-            updateView();
+            if (flipBook) {
+                flipBook.flipNext();
+            }
         }
 
         function prevPage() {
-            currentIndex = (currentIndex - 1 + imageUrls.length) % imageUrls.length;
-            updateView();
+            if (flipBook) {
+                flipBook.flipPrev();
+            }
         }
 
         function firstPage() {
-            currentIndex = 0;
-            updateView();
+            if (flipBook) {
+                flipBook.flip(0);
+            }
         }
 
         function lastPage() {
-            currentIndex = imageUrls.length - 1;
-            updateView();
+            if (flipBook) {
+                flipBook.flip(imageUrls.length - 1);
+            }
         }
 
         function jumpToPage(val) {
-            currentIndex = parseInt(val);
-            updateView();
+            if (flipBook) {
+                flipBook.flip(parseInt(val));
+            }
         }
 
         function toggleAutoPlay() {
             isAutoPlaying = !isAutoPlaying;
             if (isAutoPlaying) {
                 autoplayBtn.innerText = "Auto Play: On";
-                autoplayBtn.className = "px-4 py-2 text-sm font-medium bg-[#800020] text-white rounded-lg transition";
-                autoPlayTimer = setInterval(nextPage, 2500);
+                autoplayBtn.className = "px-4 py-2 text-sm font-semibold bg-[#800020] text-white rounded-lg shadow transition";
+                autoPlayTimer = setInterval(() => {
+                    if (flipBook) {
+                        if (flipBook.getCurrentPageIndex() < imageUrls.length - 1) {
+                            flipBook.flipNext();
+                        } else {
+                            flipBook.flip(0);
+                        }
+                    }
+                }, 3500);
             } else {
                 autoplayBtn.innerText = "Auto Play: Off";
-                autoplayBtn.className = "px-4 py-2 text-sm font-medium border border-maroon text-maroon hover:bg-[#800020]/10 rounded-lg transition";
+                autoplayBtn.className = "px-4 py-2 text-sm font-semibold border-2 border-maroon text-maroon hover:bg-[#800020]/10 rounded-lg transition";
                 clearInterval(autoPlayTimer);
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error("Fullscreen error:", err.message);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
             }
         }
 
@@ -245,11 +332,20 @@
             }
         });
 
-        // Initialize on load
+        // Initialize on window load
         window.onload = () => {
-            preloadImages();
-            renderThumbnails();
-            updateView();
+            pageSlider.max = imageUrls.length - 1;
+            let loaded = 0;
+            imageUrls.forEach(url => {
+                const img = new Image();
+                img.src = url;
+                img.onload = img.onerror = () => {
+                    loaded++;
+                    if (loaded === imageUrls.length) {
+                        initPageFlip();
+                    }
+                };
+            });
         };
     </script>
 </body>
